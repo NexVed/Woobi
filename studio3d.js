@@ -15,39 +15,41 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // Camera Presets configured specifically for Portrait Mobile Framing (360x800 to 390x844)
-  const CAMERA_STATES = {
-    STUDIO_OVERVIEW: {
-      position: new THREE.Vector3(0, 1.25, 3.25),
-      target: new THREE.Vector3(0, 1.02, 0),
-      fovLandscape: 46,
-      fovPortrait: 58
-    },
-    WARDROBE_CLOSEUP: {
-      position: new THREE.Vector3(-0.55, 1.30, 1.50),
-      target: new THREE.Vector3(-0.80, 1.25, -0.15),
-      fovLandscape: 42,
-      fovPortrait: 48
-    },
-    AVATAR_FULL_BODY: {
-      position: new THREE.Vector3(0, 1.10, 2.10),
-      target: new THREE.Vector3(0, 0.95, 0),
-      fovLandscape: 38,
-      fovPortrait: 44
-    },
-    AVATAR_DETAIL: {
-      position: new THREE.Vector3(0, 1.42, 1.15),
-      target: new THREE.Vector3(0, 1.34, 0),
-      fovLandscape: 34,
-      fovPortrait: 40
-    },
-    MIRROR_VIEW: {
-      position: new THREE.Vector3(0.55, 1.30, 1.50),
-      target: new THREE.Vector3(0.80, 1.25, -0.15),
-      fovLandscape: 42,
-      fovPortrait: 48
-    }
-  };
+  // Build THREE-dependent camera presets only after the library is available.
+  function createCameraStates() {
+    return {
+      STUDIO_OVERVIEW: {
+        position: new THREE.Vector3(0, 1.25, 3.25),
+        target: new THREE.Vector3(0, 1.02, 0),
+        fovLandscape: 46,
+        fovPortrait: 58
+      },
+      WARDROBE_CLOSEUP: {
+        position: new THREE.Vector3(-0.55, 1.30, 1.50),
+        target: new THREE.Vector3(-0.80, 1.25, -0.15),
+        fovLandscape: 42,
+        fovPortrait: 48
+      },
+      AVATAR_FULL_BODY: {
+        position: new THREE.Vector3(0, 1.10, 2.10),
+        target: new THREE.Vector3(0, 0.95, 0),
+        fovLandscape: 38,
+        fovPortrait: 44
+      },
+      AVATAR_DETAIL: {
+        position: new THREE.Vector3(0, 1.42, 1.15),
+        target: new THREE.Vector3(0, 1.34, 0),
+        fovLandscape: 34,
+        fovPortrait: 40
+      },
+      MIRROR_VIEW: {
+        position: new THREE.Vector3(0.55, 1.30, 1.50),
+        target: new THREE.Vector3(0.80, 1.25, -0.15),
+        fovLandscape: 42,
+        fovPortrait: 48
+      }
+    };
+  }
 
   class Studio3DEngine {
     constructor() {
@@ -65,14 +67,15 @@
 
       // Camera Animation State
       this.currentCameraState = 'STUDIO_OVERVIEW';
-      this.targetCameraPos = CAMERA_STATES.STUDIO_OVERVIEW.position.clone();
-      this.targetCameraLookAt = CAMERA_STATES.STUDIO_OVERVIEW.target.clone();
-      this.currentCameraLookAt = CAMERA_STATES.STUDIO_OVERVIEW.target.clone();
+      this.cameraStates = null;
+      this.targetCameraPos = null;
+      this.targetCameraLookAt = null;
+      this.currentCameraLookAt = null;
 
-      // Interactive 3D Objects for Raycasting
+      // Interactive 3D Objects are created after Three.js is available.
       this.interactiveObjects = [];
-      this.raycaster = new THREE.Raycaster();
-      this.mouse = new THREE.Vector2();
+      this.raycaster = null;
+      this.mouse = null;
 
       // Avatar & Wearable Garment System
       this.avatarGroup = null;
@@ -100,7 +103,7 @@
       this.hasDragged = false;
 
       // Animation Loop
-      this.clock = new THREE.Clock();
+      this.clock = null;
       this.animationFrameId = null;
 
       // Callbacks
@@ -123,68 +126,97 @@
         return;
       }
 
-      if (typeof THREE === 'undefined') {
-        console.error('Studio3D: THREE.js library is not loaded');
-        return;
+      if (typeof THREE === 'undefined' || !THREE.WebGLRenderer) {
+        console.error('Studio3D: Three.js is unavailable; showing the fallback view.');
+        this.showFallback('The 3D studio could not load. You can continue using the rest of your wardrobe.');
+        return false;
       }
 
-      const rect = this.container.getBoundingClientRect();
-      const width = rect.width || this.container.clientWidth || 390;
-      const height = rect.height || this.container.clientHeight || 750;
+      try {
+        this.cameraStates = createCameraStates();
+        this.targetCameraPos = this.cameraStates.STUDIO_OVERVIEW.position.clone();
+        this.targetCameraLookAt = this.cameraStates.STUDIO_OVERVIEW.target.clone();
+        this.currentCameraLookAt = this.cameraStates.STUDIO_OVERVIEW.target.clone();
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        this.clock = new THREE.Clock();
 
-      // 1. Scene with Rich Warm Atmosphere (Calibrated to Luxury Studio palette)
-      this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0xF6F0E7); // Warm cream architectural plaster tone
-      this.scene.fog = new THREE.Fog(0xF6F0E7, 8, 25); // Subtle distant falloff without washing foreground
+        const rect = this.container.getBoundingClientRect();
+        const width = rect.width || this.container.clientWidth || 390;
+        const height = rect.height || this.container.clientHeight || 750;
 
-      // 2. Camera with Portrait-Optimized Field of View
-      const aspect = width / height;
-      const isPortrait = aspect < 0.75;
-      const initialFov = isPortrait ? CAMERA_STATES.STUDIO_OVERVIEW.fovPortrait : CAMERA_STATES.STUDIO_OVERVIEW.fovLandscape;
-      this.camera = new THREE.PerspectiveCamera(initialFov, aspect, 0.1, 40);
-      this.camera.position.copy(CAMERA_STATES.STUDIO_OVERVIEW.position);
-      this.currentCameraLookAt.copy(CAMERA_STATES.STUDIO_OVERVIEW.target);
-      this.camera.lookAt(this.currentCameraLookAt);
+        // 1. Scene with Rich Warm Atmosphere (Calibrated to Luxury Studio palette)
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0xF6F0E7); // Warm cream architectural plaster tone
+        this.scene.fog = new THREE.Fog(0xF6F0E7, 8, 25); // Subtle distant falloff without washing foreground
 
-      // 3. WebGL Renderer with ACESFilmic Tone Mapping and Soft PCF Shadows
-      this.renderer = new THREE.WebGLRenderer({
-        canvas: this.canvas,
-        antialias: true,
-        alpha: false,
-        powerPreference: 'high-performance'
-      });
-      this.renderer.setSize(width, height);
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      if (THREE.ACESFilmicToneMapping) {
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.04; // Calibrated for radiant showroom highlights
+        // 2. Camera with Portrait-Optimized Field of View
+        const aspect = width / height;
+        const isPortrait = aspect < 0.75;
+        const initialFov = isPortrait ? this.cameraStates.STUDIO_OVERVIEW.fovPortrait : this.cameraStates.STUDIO_OVERVIEW.fovLandscape;
+        this.camera = new THREE.PerspectiveCamera(initialFov, aspect, 0.1, 40);
+        this.camera.position.copy(this.cameraStates.STUDIO_OVERVIEW.position);
+        this.currentCameraLookAt.copy(this.cameraStates.STUDIO_OVERVIEW.target);
+        this.camera.lookAt(this.currentCameraLookAt);
+
+        // 3. WebGL Renderer with ACESFilmic Tone Mapping and Soft PCF Shadows
+        this.renderer = new THREE.WebGLRenderer({
+          canvas: this.canvas,
+          antialias: true,
+          alpha: false,
+          powerPreference: 'high-performance'
+        });
+        this.renderer.setSize(width, height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        if (THREE.ACESFilmicToneMapping) {
+          this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          this.renderer.toneMappingExposure = 1.04; // Calibrated for radiant showroom highlights
+        }
+        if (THREE.sRGBEncoding) {
+          this.renderer.outputEncoding = THREE.sRGBEncoding;
+        }
+
+        // 4. Build Luxury Environment & Architecture matching Sérén Studio Reference
+        this.initProceduralTextures();
+        this.setupLighting();
+        this.buildRoomArchitecture();
+        this.buildStagePodium();
+        this.buildWardrobeFurniture();
+        this.buildDressingVanity();
+        this.buildHumanoidAvatar();
+        this.setupMirrorRenderPipeline();
+
+        // 5. Setup Touch & Mouse Handlers
+        this.setupInteractionHandlers();
+
+        // 6. Start Render Loop
+        this.isInitialized = true;
+        this.animate = this.animate.bind(this);
+        this.animate();
+
+        window.addEventListener('resize', this.onResize.bind(this));
+        console.log('Studio3D: Luxury Showroom initialized with PBR architecture & lighting!');
+        this.hideFallback();
+        return true;
+      } catch (error) {
+        console.error('Studio3D: initialization failed', error);
+        this.dispose();
+        this.showFallback('The 3D studio is unavailable on this device. Your wardrobe and other features are still available.');
+        return false;
       }
-      if (THREE.sRGBEncoding) {
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
+    }
+
+    showFallback(message) {
+      if (typeof window !== 'undefined' && typeof window.showStudio3DFallback === 'function') {
+        window.showStudio3DFallback(message);
       }
+    }
 
-      // 4. Build Luxury Environment & Architecture matching Sérén Studio Reference
-      this.initProceduralTextures();
-      this.setupLighting();
-      this.buildRoomArchitecture();
-      this.buildStagePodium();
-      this.buildWardrobeFurniture();
-      this.buildDressingVanity();
-      this.buildHumanoidAvatar();
-      this.setupMirrorRenderPipeline();
-
-      // 5. Setup Touch & Mouse Handlers
-      this.setupInteractionHandlers();
-
-      // 6. Start Render Loop
-      this.isInitialized = true;
-      this.animate = this.animate.bind(this);
-      this.animate();
-
-      window.addEventListener('resize', this.onResize.bind(this));
-      console.log('Studio3D: Luxury Showroom initialized with PBR architecture & lighting!');
+    hideFallback() {
+      const fallback = document.getElementById('seren3dFallback');
+      if (fallback) fallback.hidden = true;
     }
 
     /**
@@ -1831,7 +1863,8 @@
      * Smooth camera navigation to designated viewpoint
      */
     setCameraState(stateName) {
-      const state = CAMERA_STATES[stateName];
+      if (!this.isInitialized || !this.cameraStates) return;
+      const state = this.cameraStates[stateName];
       if (!state) {
         console.warn('Studio3D: Unknown camera state:', stateName);
         return;
@@ -1856,78 +1889,103 @@
     /**
      * Setup touch, pointer, and raycasting listeners
      */
-    setupInteractionHandlers() {
-      const onPointerDown = (e) => {
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  
+setupInteractionHandlers() {
+  const onPointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
 
-        this.isPointerDown = true;
-        this.pointerStartX = clientX;
-        this.pointerStartY = clientY;
-        this.lastPointerX = clientX;
-        this.lastPointerY = clientY;
-        this.hasDragged = false;
-      };
+    this.isPointerDown = true;
+    this.hasDragged = false;
 
-      const onPointerMove = (e) => {
-        if (!this.isPointerDown) return;
+    this.pointerStartX = e.clientX;
+    this.pointerStartY = e.clientY;
+    this.lastPointerX = e.clientX;
+    this.lastPointerY = e.clientY;
 
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    this.canvas.setPointerCapture?.(e.pointerId);
+  };
 
-        const dx = clientX - this.lastPointerX;
-        const dy = clientY - this.lastPointerY;
+  const onPointerMove = (e) => {
+    if (!this.isPointerDown) return;
 
-        if (Math.hypot(clientX - this.pointerStartX, clientY - this.pointerStartY) > 5) {
-          this.hasDragged = true;
-        }
+    const dx = e.clientX - this.lastPointerX;
+    const dy = e.clientY - this.lastPointerY;
 
-        // Horizontal Drag rotates avatar smoothly
-        this.targetRotationY += dx * 0.012;
-
-        this.lastPointerX = clientX;
-        this.lastPointerY = clientY;
-      };
-
-      const onPointerUp = (e) => {
-        if (!this.isPointerDown) return;
-        this.isPointerDown = false;
-
-        // If simple tap/click without drag, perform Raycasting
-        if (!this.hasDragged && e.target === this.canvas) {
-          const rect = this.canvas.getBoundingClientRect();
-          const clientX = this.pointerStartX;
-          const clientY = this.pointerStartY;
-
-          this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-          this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-          this.raycaster.setFromCamera(this.mouse, this.camera);
-          const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
-
-          if (intersects.length > 0) {
-            let hit = intersects[0].object;
-            while (hit && !hit.userData.interactiveType && hit.parent) {
-              hit = hit.parent;
-            }
-            if (hit && hit.userData.interactiveType) {
-              const type = hit.userData.interactiveType;
-              this.handleObjectClick(type);
-            }
-          }
-        }
-      };
-
-      // Mouse Listeners
-      this.canvas.addEventListener('mousedown', onPointerDown);
-      window.addEventListener('mousemove', onPointerMove);
-      window.addEventListener('mouseup', onPointerUp);
-
-      // Touch Listeners
-      this.canvas.addEventListener('touchstart', onPointerDown, { passive: true });
-      window.addEventListener('touchmove', onPointerMove, { passive: true });
-      window.addEventListener('touchend', onPointerUp, { passive: true });
+    if (
+      Math.hypot(
+        e.clientX - this.pointerStartX,
+        e.clientY - this.pointerStartY
+      ) > 5
+    ) {
+      this.hasDragged = true;
     }
+
+    if (this.hasDragged) {
+      this.targetRotationY += dx * 0.012;
+    }
+
+    this.lastPointerX = e.clientX;
+    this.lastPointerY = e.clientY;
+  };
+
+  const onPointerUp = (e) => {
+    if (!this.isPointerDown) return;
+
+    this.isPointerDown = false;
+
+    if (!this.hasDragged && e.target === this.canvas) {
+      const rect = this.canvas.getBoundingClientRect();
+
+      this.mouse.x =
+        ((this.pointerStartX - rect.left) / rect.width) * 2 - 1;
+
+      this.mouse.y =
+        -((this.pointerStartY - rect.top) / rect.height) * 2 + 1;
+
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+
+      const intersects = this.raycaster.intersectObjects(
+        this.interactiveObjects,
+        true
+      );
+
+      if (intersects.length > 0) {
+        let hit = intersects[0].object;
+
+        while (hit && !hit.userData.interactiveType && hit.parent) {
+          hit = hit.parent;
+        }
+
+        if (hit?.userData.interactiveType) {
+          this.handleObjectClick(hit.userData.interactiveType);
+        }
+      }
+    }
+
+    if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+      this.canvas.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const onPointerCancel = () => {
+    this.isPointerDown = false;
+  };
+
+  this.canvas.style.touchAction = 'none';
+  this.canvas.style.cursor = 'grab';
+
+  this.canvas.addEventListener('pointerdown', onPointerDown);
+  this.canvas.addEventListener('pointermove', onPointerMove);
+  this.canvas.addEventListener('pointerup', onPointerUp);
+  this.canvas.addEventListener('pointercancel', onPointerCancel);
+
+  this.canvas.addEventListener('pointerleave', (e) => {
+    if (!this.canvas.hasPointerCapture?.(e.pointerId)) {
+      this.canvas.style.cursor = 'grab';
+    }
+  });
+}
+
 
     /**
      * Dispatches click actions from 3D furniture
@@ -1969,7 +2027,7 @@
       const aspect = width / height;
       this.camera.aspect = aspect;
 
-      const state = CAMERA_STATES[this.currentCameraState] || CAMERA_STATES.STUDIO_OVERVIEW;
+      const state = this.cameraStates[this.currentCameraState] || this.cameraStates.STUDIO_OVERVIEW;
       const isPortrait = aspect < 0.75;
       this.camera.fov = isPortrait ? state.fovPortrait : state.fovLandscape;
       this.camera.updateProjectionMatrix();
@@ -2029,12 +2087,14 @@
     dispose() {
       if (this.animationFrameId) {
         cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
       }
       if (this.mirrorRenderTarget) {
         this.mirrorRenderTarget.dispose();
       }
       if (this.renderer) {
         this.renderer.dispose();
+        this.renderer = null;
       }
       this.isInitialized = false;
     }

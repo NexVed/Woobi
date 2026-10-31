@@ -23,11 +23,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
   
-  <!-- Three.js 3D WebGL Engine, OrbitControls, MeshoptDecoder & GLTFLoader -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.18.1/meshopt_decoder.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- Three.js is loaded sequentially near the end of the document. -->
   
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -384,6 +380,12 @@
           <div class="seren-stage-viewport" id="seren3dContainer">
             <!-- Real Three.js 3D WebGL Canvas -->
             <canvas id="seren3dCanvas" class="seren-3d-canvas"></canvas>
+            <div id="seren3dFallback" class="seren-3d-fallback" role="status" aria-live="polite" hidden>
+              <div class="seren-3d-fallback__icon" aria-hidden="true">✦</div>
+              <strong>3D Studio temporarily unavailable</strong>
+              <p id="seren3dFallbackMessage">The 3D experience could not be started. You can still explore your wardrobe.</p>
+              <button type="button" onclick="window.retryStudio3D && window.retryStudio3D()">Try again</button>
+            </div>
 
             <!-- 3D Spatial Floating Interactive Hints -->
             <div class="spatial-3d-hint wardrobe-hint" onclick="app.serenInteract('wardrobe')">
@@ -2825,8 +2827,83 @@
   <!-- Notification Toast -->
   <div class="toast-popup" id="toastPopup"></div>
 
-  <!-- Application Logic -->
-  <script src="studio3d.js?v=20261011_3"></script>
-  <script src="app.js?v=20261011_3"></script>
+  <!-- Load one pinned Three.js build first; fall back to the matching CDN build if local npm assets are unavailable. -->
+  <script>
+    (function () {
+      'use strict';
+
+      var threeSources = [
+        'node_modules/three/build/three.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.128.0/three.min.js'
+      ];
+
+      function loadScript(source) {
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement('script');
+          script.src = source;
+          script.async = true;
+          script.onload = function () { resolve(source); };
+          script.onerror = function () {
+            script.remove();
+            reject(new Error('Unable to load ' + source));
+          };
+          document.head.appendChild(script);
+        });
+      }
+
+      function loadFirstAvailable(sources) {
+        return sources.reduce(function (attempt, source) {
+          return attempt.catch(function () { return loadScript(source); });
+        }, Promise.reject(new Error('No Three.js source has loaded yet.')));
+      }
+
+      window.showStudio3DFallback = function (message) {
+        var fallback = document.getElementById('seren3dFallback');
+        var messageNode = document.getElementById('seren3dFallbackMessage');
+        if (messageNode && message) messageNode.textContent = message;
+        if (fallback) fallback.hidden = false;
+      };
+
+      window.retryStudio3D = function () {
+        var ready = window.THREE ? Promise.resolve() : loadFirstAvailable(threeSources);
+        ready.then(function () {
+          if (window.Studio3D && typeof window.Studio3D.init === 'function') {
+            window.Studio3D.init('seren3dContainer', 'seren3dCanvas');
+          } else {
+            window.showStudio3DFallback('The 3D engine script is unavailable. Please refresh the page and try again.');
+          }
+        }).catch(function (error) {
+          console.warn('Studio3D retry failed.', error);
+          window.showStudio3DFallback('Three.js is still unavailable. Please check your connection and try again.');
+        });
+      };
+
+      loadFirstAvailable(threeSources)
+        .catch(function (error) {
+          console.warn('Studio3D: local and CDN Three.js sources failed.', error);
+          return null;
+        })
+        .then(function () {
+          // A missing 3D engine must not prevent the main application from loading.
+          return loadScript('studio3d.js?v=20261031_1').catch(function (error) {
+            console.error('Studio3D engine script failed to load.', error);
+            window.showStudio3DFallback('The 3D studio could not start. You can continue using the rest of the app.');
+            return null;
+          });
+        })
+        .then(function () {
+          return loadScript('app.js?v=20261031_1');
+        })
+        .then(function () {
+          if (!window.THREE) {
+            window.showStudio3DFallback('The 3D library could not be loaded. You can continue using the rest of the app.');
+          }
+        })
+        .catch(function (error) {
+          console.error('Woobi application script could not be loaded.', error);
+          window.showStudio3DFallback('The application could not fully load. Please refresh the page.');
+        });
+    })();
+  </script>
 </body>
 </html>

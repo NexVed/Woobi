@@ -6606,3 +6606,53 @@ html, body {
 .seren-back-studio-btn.hidden {
   display: none !important;
 }
+
+
+/* Three.js/WebGL failure state: keep the rest of the wardrobe usable. */
+.seren-3d-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+  color: #473b2f;
+  background: rgba(246, 240, 231, 0.96);
+}
+.seren-3d-fallback[hidden] {
+  display: none;
+}
+.seren-3d-fallback__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(71, 59, 47, 0.18);
+  border-radius: 50%;
+  font-size: 24px;
+}
+.seren-3d-fallback strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.seren-3d-fallback p {
+  max-width: 300px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #75695d;
+}
+.seren-3d-fallback button {
+  margin-top: 4px;
+  padding: 10px 18px;
+  border: 1px solid #75695d;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

@@ -1254,7 +1254,7 @@
     { id: 'tank', cat: 'tops', name: 'Ribbed Ivory Tank', photo: 'assets/welcome_hero.jpg', is3D: true, sub: 'Scoop neck luxury cotton' },
 
     { id: 'taupe_wide', cat: 'bottoms', name: 'Tailored Taupe Trousers', photo: 'assets/beige_chinos.jpg', is3D: true, sub: 'Pleated high-waisted drape' },
-    { id: 'dark_denim', cat: 'bottoms', name: 'Dark Indigo Straight Jeans', photo: 'assets/blue_jeans.jpg', is3D: true, sub: 'Tailored Japanese denim' },
+    { id: 'dark_denim', cat: 'bottoms', name: 'Dark Indigo Straight Jeans', photo:'assets/dark_denim.jpg', is3D: true, sub: 'Tailored Japanese denim' },
     { id: 'white_chinos', cat: 'bottoms', name: 'Crisp Ivory Chinos', photo: 'assets/beige_chinos.jpg', is3D: true, sub: 'Clean minimalist cut' },
 
     { id: 'blazer', cat: 'outerwear', name: 'Camel Smart Blazer', photo: 'assets/smart_blazer.jpg', is3D: true, sub: 'Structured tailored wool' },
